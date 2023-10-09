@@ -8,56 +8,86 @@
 using std::vector;
 using std::string;
 
-
-void CreateUser(const string username, const string password, const string name);
-void DeleteUser();
-User* Login(const string username, const string password);
-void Logout();
-const bool FindUser(const string username);
-User* GetUser(const string username);
-void LoginMenu();
-void UserMenu();
-void ShowUserDataBase();
-void CreateMessage();
-void ShowMessage();
-
-static bool HasLoggedIn = false;
 static bool Terminator = false;
-static vector<User> UserDataBase;
-static vector<Chat> ChatDataBase;
-static User* currentUser = nullptr;
 
+void CreateUser(const string& _username, const string& _password, vector<User>& _UserDB);
+const bool FindUser(const string& _username, const vector<User>& _UserDB);
+User* GetUser(const string& _username, vector<User>& _UserDB);
+void DeleteUser(User* _currentUser, vector<User>& _UserDB, bool& status);
+User* Login(const string& _username, const string& _password, vector<User>& _UserDB, bool& status);
+void ShowUserDataBase(const vector<User>& _UserDB);
+void LoginMenu(User** _currentUser, vector<User>& _UserDB, bool& status);
+void UserMenu(vector<Chat>& _ChatDB, vector<User>& _UserDB, User* _currentUser, bool& status);
+void CreateMessage(vector<User>& _UserDB, vector<Chat>& _ChatDB, User* _currentUser);
+void ShowMessage(const vector<Chat>& _ChatDB, User* _currentUser);
 
-void CreateUser(const string username, const string password, const string name)
+/*----------------------------------------------------------------------*/
+
+void CreateUser(const string& _username, const string& _password, vector<User>& _UserDB)
 {
-    if (FindUser(username))
+    if (FindUser(_username, _UserDB))
     {
         std::cout << "This user already exists!\n";
     }
     else
     {
+        std::cout << "Please enter your name: ";
+        string name;
+        std::cin >> name;
         std::cout << "User has been created!\n";
-        UserDataBase.push_back(User(username, password, name));
+        _UserDB.push_back(User(_username, _password, name));
     }
 }
 
-void DeleteUser()
+void DeleteUser(User* _currentUser, vector<User>& _UserDB, bool& status)
 {
-    UserDataBase.erase(std::find(UserDataBase.begin(), UserDataBase.end(), User(currentUser->GetUserName())));
-    currentUser = nullptr;
-    HasLoggedIn = false;
+    _UserDB.erase(std::find(_UserDB.begin(), _UserDB.end(), User(_currentUser->GetUserName())));
+    _currentUser = nullptr;
+    status = false;
 }
 
-User* Login(const string username, const string password)
+const bool FindUser(const string& _username, const vector<User>& _UserDB)
 {
-    if (FindUser(username))
+    if (std::find(_UserDB.begin(), _UserDB.end(), User(_username)) != _UserDB.end())
     {
-        auto search_index = std::find(UserDataBase.begin(), UserDataBase.end(), User(username));
-        if (search_index->CheckUser(username, password))
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+
+}
+
+User* GetUser(const string& _username, vector<User>& _UserDB)
+{
+    if (FindUser(_username, _UserDB))
+    {
+        auto search_index = std::find(_UserDB.begin(), _UserDB.end(), User(_username));
+        return &(_UserDB[search_index - _UserDB.begin()]);
+    }
+    {
+        std::cout << "User not exist!\n";
+        return nullptr;
+    }
+
+}
+void Logout(User* _currentUser, bool& status)
+{
+    _currentUser = nullptr;
+    status = false;
+}
+
+User* Login(const string& _username, const string& _password, vector<User>& _UserDB, bool& status)
+{
+    if (FindUser(_username, _UserDB))
+    {
+        auto search_index = std::find(_UserDB.begin(), _UserDB.end(), User(_username));
+        if (search_index->CheckUser(_username, _password))
         {
             std::cout << "Welcome to CLI Chat!\n";
-            HasLoggedIn = true;
-            return &(UserDataBase[search_index - UserDataBase.begin()]);
+            status = true;
+            return &(_UserDB[search_index - _UserDB.begin()]);
         }
         else
         {
@@ -72,43 +102,118 @@ User* Login(const string username, const string password)
         return nullptr;
     }
 }
-
-void Logout()
+void ShowUserDataBase(const vector<User>& _UserDB)
 {
-    currentUser = nullptr;
-    HasLoggedIn = false;
-}
-
-const bool FindUser(const string username)
-{
-    if (std::find(UserDataBase.begin(), UserDataBase.end(), User(username)) != UserDataBase.end())
+    if (_UserDB.empty())
     {
-        return true;
+        std::cout << "User data base is empty!\n";
     }
     else
     {
-        return false;
+        for (auto user : _UserDB)
+        {
+            std::cout << user << '\n';
+        }
+    }    
+}
+
+void CreateMessage(vector<User>& _UserDB, vector<Chat>& _ChatDB, User* _currentUser)
+{
+    string username;
+    string message;
+    vector<User> recipients;
+    char choise = 'Y';
+    std::cout << "Do you want to send this message to all users?(Y/N): ";
+    std::cin >> choise;
+    if (toupper(choise) == 'Y')
+    {
+        std::cout << "Enter message: \n";
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::getline(std::cin, message);
+        for (auto reciever : _UserDB)
+        {
+            if (reciever == *_currentUser)
+            {
+                continue;
+            }
+            else
+            {
+                recipients.push_back(reciever);
+            }
+        }
+        _ChatDB.push_back(Chat(_currentUser, recipients, message));
+        
+    }
+    else if (toupper(choise) == 'N')
+    {
+        std::cout << "Enter user name: ";
+        std::cin >> username;
+        if (FindUser(username, _UserDB))
+        {
+                if (_ChatDB.empty())
+            {
+                std::cout << "Enter message:\n";
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::getline(std::cin, message);
+                _ChatDB.push_back(Chat(_currentUser, GetUser(username, _UserDB), message));
+            }
+            else
+            {
+                for (int i = 0; i < _ChatDB.size(); i++)
+                {
+                    if ((*_currentUser == _ChatDB[i].GetFromUser() || *_currentUser == _ChatDB[i].GetToUser())
+                        && (*GetUser(username, _UserDB) == _ChatDB[i].GetFromUser() || *GetUser(username, _UserDB) == _ChatDB[i].GetToUser()))
+                    {
+                        std::cout << "Enter message: \n";
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                        std::getline(std::cin, message);
+                        _ChatDB[i].AddMessage(message);
+                        break;
+                    }
+                    else
+                    {
+                        std::cout << "Enter message: \n";
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                        std::getline(std::cin, message);
+                        _ChatDB.push_back(Chat(_currentUser, GetUser(username, _UserDB), message));
+                        break;
+                    }
+                }
+            }      
+
+        }
+        else
+        {
+            std::cout << "User does not exist!\n";
+        }
+
+    }
+    else
+    {
+        std::cout << "Incorrect input!\n";
     }
 
 }
 
-User* GetUser(const string username)
+void ShowMessage(const vector<Chat>& _ChatDB, User* _currentUser)
 {
-    if (FindUser(username))
+    for (auto checkMessage : _ChatDB)
     {
-        auto search_index = std::find(UserDataBase.begin(), UserDataBase.end(), User(username));
-        return &(UserDataBase[search_index - UserDataBase.begin()]);
-    }
-    {
-        std::cout << "User not exist!\n";
-        return nullptr;
+        if (*_currentUser == checkMessage.GetFromUser() || *_currentUser == checkMessage.GetToUser())
+        {
+            checkMessage.ShowMessages();
+        }
+        else if (checkMessage.HasRecipient(_currentUser->GetUserName()))
+        {
+            checkMessage.ShowMessages();
+        }
     }
 
 }
 
-void LoginMenu()
+void LoginMenu(User** _currentUser, vector<User>& _UserDB, bool& status)
 {
-    string username, password, name;
+    string username, password;
     int menuOperator = 0;
     std::cout << "Welcome to CLI Chat, please choose your option:\n";
     std::cout << "\t0 - Exit\n"
@@ -138,19 +243,17 @@ void LoginMenu()
         std::cin >> username;
         std::cout << "Please enter password: ";
         std::cin >> password;
-        currentUser = Login(username, password);
+        *_currentUser = Login(username, password, _UserDB, status);
         break;
     case 2:
         std::cout << "Please enter username: ";
         std::cin >> username;
         std::cout << "Please enter password: ";
-        std::cin >> password;
-        std::cout << "Please enter your name: ";
-        std::cin >> name;
-        CreateUser(username, password, name);
+        std::cin >> password;        
+        CreateUser(username, password, _UserDB);
         break;
     case 4:
-        ShowUserDataBase();
+        ShowUserDataBase(_UserDB);
         break;
     default:
         std::cout << "Wrong statement!\n";
@@ -158,11 +261,12 @@ void LoginMenu()
     }
 }
 
-void UserMenu()
+void UserMenu(vector<Chat>& _ChatDB, vector<User>& _UserDB, User* _currentUser, bool& status)
 {
     string username, password;
     int menuOperator;
-    std::cout << "Welcome user: " << currentUser->GetName() << "\nPlease choose your option:\n";
+    
+    std::cout << "Welcome user: " << _currentUser->GetName() << "\nPlease choose your option:\n";
     std::cout << "\t1 - Show Messages\n"
         << "\t2 - Send Message\n"
         << "\t3 - Logout\n"
@@ -177,15 +281,15 @@ void UserMenu()
         break;
     case 1:
         std::cout << "Messages: \n";
-        ShowMessage();
+        ShowMessage(_ChatDB, _currentUser);
         break;
     case 2:
         std::cout << "Send message\n";
-        CreateMessage();
+        CreateMessage(_UserDB, _ChatDB, _currentUser);
         break;
     case 3:
         std::cout << "You has logout\n";
-        Logout();
+        Logout(_currentUser, status);
         break;
     case 4:
     {
@@ -194,7 +298,7 @@ void UserMenu()
         std::cin >> choise;
         if (toupper(choise) == 'Y')
         {
-            DeleteUser();
+            DeleteUser(_currentUser, _UserDB, status);
             std::cout << "User has been successfuly deleted!\n";
             break;
         }        
@@ -203,12 +307,12 @@ void UserMenu()
     case 5:
         std::cout << "Please enter old password: ";
         std::cin >> password;
-        if (password == currentUser->GetPassword())
+        if (password == _currentUser->GetPassword())
         {
             std::cout << "Please enter new password: ";
             std::cin >> password;
-            currentUser->SetPassword(password);
-            std::cout << "Your password has been changed to: " << currentUser->GetPassword() << std::endl;
+            _currentUser->SetPassword(password);
+            std::cout << "Your password has been changed to: " << _currentUser->GetPassword() << std::endl;
         }
         else
         {
@@ -218,115 +322,6 @@ void UserMenu()
     default:
         std::cout << "Wrong statement!\n";
         break;
-    }
-
-}
-
-void ShowUserDataBase()
-{
-    if (UserDataBase.empty())
-    {
-        std::cout << "User data base is empty!\n";
-    }
-    else
-    {
-        for (auto user : UserDataBase)
-        {
-            std::cout << user << '\n';
-        }
-    }    
-}
-
-void CreateMessage()
-{
-    string username;
-    string message;
-    vector<User> recipients;
-    char choise = 'Y';
-    std::cout << "Do you want to send this message to all users?(Y/N): ";
-    std::cin >> choise;
-    if (toupper(choise) == 'Y')
-    {
-        std::cout << "Enter message: \n";
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::getline(std::cin, message);
-        for (auto reciever : UserDataBase)
-        {
-            if (reciever == *currentUser)
-            {
-                continue;
-            }
-            else
-            {
-                recipients.push_back(reciever);
-            }
-        }
-        ChatDataBase.push_back(Chat(currentUser, recipients, message));
-        
-    }
-    else if (toupper(choise) == 'N')
-    {
-        std::cout << "Enter user name: ";
-        std::cin >> username;
-        if (FindUser(username))
-        {
-                if (ChatDataBase.empty())
-            {
-                std::cout << "Enter message:\n";
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                std::getline(std::cin, message);
-                ChatDataBase.push_back(Chat(currentUser, GetUser(username), message));
-            }
-            else
-            {
-                for (int i = 0; i < ChatDataBase.size(); i++)
-                {
-                    if ((*currentUser == ChatDataBase[i].GetFromUser() || *currentUser == ChatDataBase[i].GetToUser())
-                        && (*GetUser(username) == ChatDataBase[i].GetFromUser() || *GetUser(username) == ChatDataBase[i].GetToUser()))
-                    {
-                        std::cout << "Enter message: \n";
-                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                        std::getline(std::cin, message);
-                        ChatDataBase[i].AddMessage(message);
-                        break;
-                    }
-                    else
-                    {
-                        std::cout << "Enter message: \n";
-                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                        std::getline(std::cin, message);
-                        ChatDataBase.push_back(Chat(currentUser, GetUser(username), message));
-                        break;
-                    }
-                }
-            }      
-
-        }
-        else
-        {
-            std::cout << "User does not exist!\n";
-        }
-
-    }
-    else
-    {
-        std::cout << "Incorrect input!\n";
-    }
-
-}
-
-void ShowMessage()
-{
-    for (auto checkMessage : ChatDataBase)
-    {
-        if (*currentUser == checkMessage.GetFromUser() || *currentUser == checkMessage.GetToUser())
-        {
-            checkMessage.ShowMessages();
-        }
-        else if (checkMessage.HasRecipient(currentUser->GetUserName()))
-        {
-            checkMessage.ShowMessages();
-        }
     }
 
 }
