@@ -4,19 +4,22 @@
 
 int main()
 {
-
+    bool HasLoggedIn = false;    
+    vector<User> UserDataBase;
+    vector<Chat> ChatDataBase;
+    User* currentUser = nullptr;
+    
     while (!Terminator)
     {
         if (HasLoggedIn)
         {
-            UserMenu();
+            UserMenu(ChatDataBase, UserDataBase, currentUser, HasLoggedIn);
         }
         else
         {
-            LoginMenu();
+            LoginMenu(&currentUser, UserDataBase, HasLoggedIn);
         }
+      
     }
-
     return 0;
 }
-
